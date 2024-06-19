@@ -1,10 +1,11 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSlider, QPushButton
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QHBoxLayout, QSlider, QPushButton, QLineEdit
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer, Qt
 import cv2
 from pypylon import pylon
 import numpy as np
+import matplotlib.pyplot as plt
 
 import os
 os.environ["PYLON_CAMEMU"] = "1"
@@ -26,7 +27,8 @@ class CameraWindow(QMainWindow):
         # Set up a timer to call the update function regularly
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
-        self.timer.start(30)  # Update every 30 ms
+        self.update_time = 30 # 30 ms
+        self.timer.start(self.update_time)  # Updatimport matplotlib.pyplot as plte every 30 ms
 
         # Initialize points for perspective transform
         self.points = []
@@ -52,14 +54,21 @@ class CameraWindow(QMainWindow):
         self.captured_label = QLabel(self)
         self.captured_label.setAlignment(Qt.AlignCenter)
 
+        self.plot_button = QPushButton('Plot Image')
+        self.plot_button.clicked.connect(self.plot_grayscale)
+
         self.capture_button = QPushButton('Capture')
         self.capture_button.clicked.connect(self.capture_image)
 
         self.gain_slider = QSlider(Qt.Horizontal)
         self.gain_slider.setMinimum(self.gain_min)
         self.gain_slider.setMaximum(self.gain_max)
-        self.gain_slider.setValue(self.gain_min)
+        self.gain_slider.setValue(self.camera.GainRaw.GetValue())
         self.gain_slider.valueChanged.connect(self.set_gain)
+
+        self.gain_value = QLineEdit()
+        self.gain_value.setFixedWidth(50)
+        self.gain_value.setText(str(self.camera.GainRaw.GetValue()))
         
         self.toggle_button = QPushButton('Stop Update')
         self.toggle_button.clicked.connect(self.toggle_update)
@@ -75,6 +84,8 @@ class CameraWindow(QMainWindow):
         layout2 = QHBoxLayout()
         layout2.addWidget(QLabel("Gain"))
         layout2.addWidget(self.gain_slider)
+        layout2.addWidget(self.gain_value)
+        layout2.addWidget(self.plot_button)
         layout2.addWidget(self.toggle_button)
         layout2.addWidget(self.capture_button)
 
@@ -88,8 +99,20 @@ class CameraWindow(QMainWindow):
         self.setCentralWidget(container)
 
     def set_gain(self, value):
+        self.gain_value.setText(str(value))
         self.camera.GainRaw.SetValue(value)
-        print(self.camera.GainRaw.GetValue())
+
+    def plot_grayscale(self):
+        if self.image is not None:
+            # Convert the image to grayscale
+            gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+
+            # Plot the grayscale image using matplotlib
+            plt.figure(figsize=(8, 6))
+            plt.imshow(gray_image, cmap='plasma', vmin=0, vmax=255)
+            plt.title("Grayscale Image")
+            plt.axis('off')  # Hide axes
+            plt.show()
 
     def capture_image(self):
         if self.transformed_image is not None:
@@ -169,6 +192,7 @@ class CameraWindow(QMainWindow):
                 # Convert the image to Qt format
                 height, width, channel = img_resized.shape
                 bytesPerLine = 3 * width
+                
                 qImg = QImage(img_resized.data, width, height, bytesPerLine, QImage.Format_BGR888)
 
                 # Display the image in the label

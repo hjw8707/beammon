@@ -38,12 +38,21 @@ class CameraWindow(QMainWindow):
         self.transformed_image = None
         self.updating = True   
 
+        # Initialize video writer
+        self.recording = False
+        self.video_writer = None
+
         self.initUI()
         self.update_frame()
 
     def initUI(self):
         self.setWindowTitle('Basler Camera Feed')
         self.setGeometry(100, 100, 1200, 600)
+
+        #self.updatetime_ledit = QLineEdit()
+        #self.updatetime_ledit.setText(self.update_time)
+        #self.updatetime_label = QLabel('ms')
+        
 
         self.label = QLabel(self)
         self.label.setAlignment(Qt.AlignCenter)
@@ -53,6 +62,12 @@ class CameraWindow(QMainWindow):
 
         self.captured_label = QLabel(self)
         self.captured_label.setAlignment(Qt.AlignCenter)
+
+        self.start_record_button = QPushButton('Start Recording')
+        self.start_record_button.clicked.connect(self.start_recording)
+
+        self.stop_record_button = QPushButton('Stop Recording')
+        self.stop_record_button.clicked.connect(self.stop_recording)
 
         self.plot_button = QPushButton('Plot Image')
         self.plot_button.clicked.connect(self.plot_grayscale)
@@ -85,6 +100,8 @@ class CameraWindow(QMainWindow):
         layout2.addWidget(QLabel("Gain"))
         layout2.addWidget(self.gain_slider)
         layout2.addWidget(self.gain_value)
+        layout2.addWidget(self.start_record_button)
+        layout2.addWidget(self.stop_record_button)
         layout2.addWidget(self.plot_button)
         layout2.addWidget(self.toggle_button)
         layout2.addWidget(self.capture_button)
@@ -97,6 +114,18 @@ class CameraWindow(QMainWindow):
         container.setLayout(vlayout)
 
         self.setCentralWidget(container)
+
+    def start_recording(self):
+        if not self.recording and self.image is not None:
+            # Set up the video writer with the same size as the camera feed
+            height, width = self.image.shape[:2]
+            self.video_writer = cv2.VideoWriter('output.avi', cv2.VideoWriter_fourcc(*'XVID'), 33, (width, height))
+            self.recording = True
+
+    def stop_recording(self):
+        if self.recording:
+            self.recording = False
+            self.video_writer.release()
 
     def set_gain(self, value):
         self.gain_value.setText(str(value))
@@ -210,7 +239,10 @@ class CameraWindow(QMainWindow):
                     # Convert the transformed image to Qt format
                     qimg = QImage(self.transformed_image.data, self.rect_width, self.rect_height, self.rect_width * 3, QImage.Format_BGR888)
                     self.transformed_label.setPixmap(QPixmap.fromImage(qimg))
-
+                # Save the current frame if recording
+                if self.recording:
+                    self.video_writer.write(img)
+                    
             grabResult.Release()
 
     def resize_image_keep_aspect_ratio(self, img, max_width, max_height):
